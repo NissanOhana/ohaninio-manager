@@ -28,6 +28,9 @@ export interface SessionEntry {
   prNumber?: number;
   prUrl?: string;
   projectName?: string;
+  isSidechain?: boolean;
+  name?: string;
+  prRepository?: string;
 }
 
 export interface ProjectStatus {
@@ -69,9 +72,12 @@ export interface InsightsReport {
   skillIdeas: Array<{ name: string; description: string }>;
 }
 
+export type SessionStatus = "thinking" | "idle" | "recent";
+
 export interface LiveSession extends SessionEntry {
   projectName: string;
   isActive: boolean;
+  status?: SessionStatus;
 }
 
 export interface OverviewData {

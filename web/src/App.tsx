@@ -9,8 +9,12 @@ import { ThemeToggle } from "./components/ui/ThemeToggle";
 type Page = "dashboard" | "agent";
 
 export default function App() {
-  const { data, loading, error, refresh } = useOverview();
-  const { connected } = useWebSocket(refresh);
+  const { data, loading, error, refresh, setOverviewData, setLiveSessions } = useOverview();
+  const { connected } = useWebSocket({
+    onOverviewData: setOverviewData,
+    onLiveSessions: setLiveSessions,
+    onDataChanged: refresh, // fallback for any legacy data_changed messages
+  });
   const [page, setPage] = useState<Page>("dashboard");
   const [showInsights, setShowInsights] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);

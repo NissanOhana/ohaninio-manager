@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { api, type OverviewData } from "../lib/api";
+import { api, type OverviewData, type LiveSession } from "../lib/api";
 
 export function useOverview() {
   const [data, setData] = useState<OverviewData | null>(null);
@@ -19,12 +19,20 @@ export function useOverview() {
     }
   }, []);
 
+  // Initial fetch only — no polling
   useEffect(() => {
     refresh();
-    // Auto-refresh every 10 seconds for live sessions
-    const interval = setInterval(refresh, 10000);
-    return () => clearInterval(interval);
   }, [refresh]);
 
-  return { data, loading, error, refresh };
+  // WebSocket pushes full overview data
+  const setOverviewData = useCallback((overview: OverviewData) => {
+    setData(overview);
+  }, []);
+
+  // WebSocket pushes just live sessions (partial update)
+  const setLiveSessions = useCallback((sessions: LiveSession[]) => {
+    setData((prev) => (prev ? { ...prev, liveSessions: sessions } : prev));
+  }, []);
+
+  return { data, loading, error, refresh, setOverviewData, setLiveSessions };
 }

@@ -3,6 +3,8 @@ import { readFileSync, existsSync, watch } from "fs";
 import { homedir } from "os";
 import { handleApi, jsonResponse } from "./api/routes.js";
 import { handleWsMessage, cleanupChat } from "./ws/handler.js";
+import { buildOverviewData } from "./api/overview.js";
+import { getLiveSessions } from "./data/sessions.js";
 
 const MIME_TYPES: Record<string, string> = {
   ".html": "text/html",
@@ -112,7 +114,8 @@ export function startServer(options: ServerOptions = {}) {
     },
   });
 
-  // File watcher on ~/.claude for live updates
+  // Debounced file watcher — pushes full overview data instead of just a notification
+  let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   try {
     const claudeDir = join(homedir(), ".claude");
     const watcher = watch(claudeDir, { recursive: true }, (event, filename) => {
@@ -120,19 +123,36 @@ export function startServer(options: ServerOptions = {}) {
         filename &&
         (filename.includes("sessions-index") ||
           filename.includes("history.jsonl") ||
-          filename.includes("memory"))
+          filename.includes("memory") ||
+          filename.endsWith(".jsonl"))
       ) {
-        broadcast({ type: "data_changed", file: filename });
+        if (debounceTimer) clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+          broadcast({ type: "overview", data: buildOverviewData() });
+        }, 100);
       }
     });
 
     process.on("SIGINT", () => {
       watcher.close();
+      if (liveScanInterval) clearInterval(liveScanInterval);
       process.exit(0);
     });
   } catch (e) {
     console.warn("[watcher] Could not watch ~/.claude:", e);
   }
+
+  // Periodic live session scanning (process detection via ps/lsof)
+  let lastLiveSessionIds = "";
+  const liveScanInterval = setInterval(() => {
+    if (wsClients.size === 0) return; // no clients, skip work
+    const sessions = getLiveSessions();
+    const key = sessions.map(s => `${s.sessionId}:${s.status}`).join("|");
+    if (key !== lastLiveSessionIds) {
+      lastLiveSessionIds = key;
+      broadcast({ type: "live_sessions", sessions });
+    }
+  }, 5000);
 
   console.log(`\n  Ohaninio Manager running at http://localhost:${PORT}\n`);
   if (DEV_MODE) {

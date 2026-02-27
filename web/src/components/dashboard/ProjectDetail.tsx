@@ -6,9 +6,10 @@ interface ProjectDetailProps {
   projectId: string;
   projectName: string;
   onBack: () => void;
+  onSelectSession?: (session: SessionEntry & { projectName: string }) => void;
 }
 
-export function ProjectDetail({ projectId, projectName, onBack }: ProjectDetailProps) {
+export function ProjectDetail({ projectId, projectName, onBack, onSelectSession }: ProjectDetailProps) {
   const [sessions, setSessions] = useState<SessionEntry[]>([]);
   const [memoryFiles, setMemoryFiles] = useState<MemoryFile[]>([]);
   const [expandedMemory, setExpandedMemory] = useState<string | null>(null);
@@ -90,7 +91,11 @@ export function ProjectDetail({ projectId, projectName, onBack }: ProjectDetailP
         <h3 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">Recent Sessions</h3>
         <div className="space-y-1.5">
           {sessions.slice(0, 20).map((session, i) => (
-            <div key={session.sessionId || i} className="flex items-start gap-3 p-2.5 rounded-lg hover:bg-[var(--bg-tertiary)]">
+            <button
+              key={session.sessionId || i}
+              onClick={() => onSelectSession?.({ ...session, projectName })}
+              className="w-full text-left flex items-start gap-3 p-2.5 rounded-lg hover:bg-[var(--bg-tertiary)] transition-colors"
+            >
               <span className="text-xs text-[var(--text-muted)] shrink-0 w-16 mt-0.5">
                 {new Date(session.modified).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
               </span>
@@ -107,7 +112,7 @@ export function ProjectDetail({ projectId, projectName, onBack }: ProjectDetailP
                   </span>
                 </div>
               </div>
-            </div>
+            </button>
           ))}
         </div>
       </section>

@@ -4,6 +4,7 @@ import { getProjectStatuses } from "../data/status.js";
 import { getInsightsReport, getInsightsReportHtml } from "../data/insights.js";
 import { getTodayHistory, getHistoryStats } from "../data/history.js";
 import { RunStore } from "../chat/run-store.js";
+import { buildOverviewData } from "./overview.js";
 
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -105,33 +106,7 @@ export function handleApi(url: URL): Response | null {
 
   // GET /api/overview
   if (path === "/api/overview") {
-    const projects = listProjects();
-    const stats = getHistoryStats();
-    const todaySessions = getTodaySessions();
-    const statuses = getProjectStatuses();
-    const memHealth = getMemoryHealth();
-    const liveSessions = getLiveSessions();
-
-    return jsonResponse({
-      projects: projects.map((p) => ({
-        id: p.id,
-        name: p.displayName,
-        sessionCount: p.sessionCount,
-        todayCount: p.todaySessionCount,
-        lastActivity: p.lastActivity,
-      })),
-      stats,
-      todaySessions: todaySessions.slice(0, 20),
-      liveSessions,
-      statuses,
-      memoryHealth: memHealth.map((h) => ({
-        projectName: h.projectName,
-        status: h.status,
-        fileCount: h.files.length,
-        lastUpdated: h.lastUpdated?.toISOString() || null,
-        sessionsSinceUpdate: h.sessionsSinceUpdate,
-      })),
-    });
+    return jsonResponse(buildOverviewData());
   }
 
   // GET /api/runs
