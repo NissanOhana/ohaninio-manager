@@ -1,5 +1,6 @@
-import { useState } from "react";
-import { ArrowLeft, MessageSquare, GitBranch, Clock, ExternalLink, ChevronDown, ChevronUp, Link2 } from "lucide-react";
+import { useState, useCallback } from "react";
+import { ArrowLeft, MessageSquare, GitBranch, Clock, ExternalLink, ChevronDown, ChevronUp, Link2, Sparkles, GitFork, Loader2 } from "lucide-react";
+import { useWs } from "../../context/WebSocketContext";
 import type { SessionEntry } from "../../lib/api";
 
 interface SessionDetailProps {
@@ -31,7 +32,16 @@ function formatDuration(startStr: string, endStr: string): string {
 
 export function SessionDetail({ session, onBack }: SessionDetailProps) {
   const [promptExpanded, setPromptExpanded] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
+  const { send } = useWs();
   const promptTruncated = session.firstPrompt && session.firstPrompt.length > 200;
+
+  const handleAnalyze = useCallback(() => {
+    setAnalyzing(true);
+    send({ action: "session_insights", sessionId: session.sessionId });
+    // Reset after a timeout (the agent will stream results elsewhere)
+    setTimeout(() => setAnalyzing(false), 3000);
+  }, [send, session.sessionId]);
 
   return (
     <div className="space-y-6">
@@ -44,7 +54,15 @@ export function SessionDetail({ session, onBack }: SessionDetailProps) {
           <ArrowLeft size={18} />
         </button>
         <div className="min-w-0 flex-1">
-          <h2 className="text-xl font-semibold truncate">{session.summary || "Untitled Session"}</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-xl font-semibold truncate">{session.summary || "Untitled Session"}</h2>
+            {session.isSidechain && (
+              <span className="text-[10px] font-medium text-[var(--accent-yellow)] bg-[var(--accent-yellow)]/10 px-2 py-0.5 rounded-full flex items-center gap-1 shrink-0">
+                <GitFork size={10} />
+                Sidechain
+              </span>
+            )}
+          </div>
           <span className="text-sm text-[var(--text-muted)]">{session.projectName}</span>
         </div>
       </div>
@@ -160,6 +178,29 @@ export function SessionDetail({ session, onBack }: SessionDetailProps) {
           )}
         </div>
       </section>
+
+      {/* Analyze CTA */}
+      <button
+        onClick={handleAnalyze}
+        disabled={analyzing}
+        className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium transition-all ${
+          analyzing
+            ? "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)] cursor-wait"
+            : "bg-[var(--accent-purple)] text-white hover:opacity-90"
+        }`}
+      >
+        {analyzing ? (
+          <>
+            <Loader2 size={14} className="animate-spin" />
+            Analyzing...
+          </>
+        ) : (
+          <>
+            <Sparkles size={14} />
+            Analyze this session
+          </>
+        )}
+      </button>
     </div>
   );
 }

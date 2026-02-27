@@ -1,5 +1,5 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
-import { Activity, MessageSquare, Wrench, Cpu, Calendar } from "lucide-react";
+import { Activity, MessageSquare, Wrench, Cpu, Calendar, Coins } from "lucide-react";
 import type { UsageStats } from "../../lib/api";
 
 interface StatsPanelProps {
@@ -161,6 +161,73 @@ export function StatsPanel({ stats }: StatsPanelProps) {
           </div>
         </div>
       )}
+
+      {/* Token Budget */}
+      {(() => {
+        const DAILY_BUDGET = 5_000_000;
+        const WEEKLY_BUDGET = 35_000_000;
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayActivity = stats.dailyActivity.find((d) => d.date === todayStr);
+        const todayTokensEstimate = todayActivity
+          ? (todayActivity.messageCount * (totalTokensAllModels / Math.max(stats.totalMessages, 1)))
+          : 0;
+        const weekTokensEstimate = stats.weekMessages > 0
+          ? (stats.weekMessages * (totalTokensAllModels / Math.max(stats.totalMessages, 1)))
+          : 0;
+        const dailyPct = Math.min((todayTokensEstimate / DAILY_BUDGET) * 100, 100);
+        const weeklyPct = Math.min((weekTokensEstimate / WEEKLY_BUDGET) * 100, 100);
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+        return (
+          <div className="mt-5">
+            <h3 className="text-xs text-[var(--text-muted)] uppercase tracking-wider mb-3 flex items-center gap-1.5">
+              <Coins size={12} className="text-[var(--accent-yellow)]" />
+              Token Budget (estimated)
+            </h3>
+            <div className="space-y-3">
+              {/* Today */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-[var(--text-primary)]">Today</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">
+                    {formatNumber(todayTokensEstimate)} / {formatNumber(DAILY_BUDGET)}
+                  </span>
+                </div>
+                <div className="h-2 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      dailyPct > 80 ? "bg-red-500" : dailyPct > 50 ? "bg-[var(--accent-yellow)]" : "bg-[var(--accent-green)]"
+                    }`}
+                    style={{ width: `${Math.max(dailyPct, 0.5)}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* This Week */}
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-[var(--text-primary)]">This Week</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">
+                    {formatNumber(weekTokensEstimate)} / {formatNumber(WEEKLY_BUDGET)}
+                  </span>
+                </div>
+                <div className="h-2 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      weeklyPct > 80 ? "bg-red-500" : weeklyPct > 50 ? "bg-[var(--accent-yellow)]" : "bg-[var(--accent-purple)]"
+                    }`}
+                    style={{ width: `${Math.max(weeklyPct, 0.5)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <p className="text-[10px] text-[var(--text-muted)] mt-2">
+              Based on model usage data. Resets estimated daily. Timezone: {timezone}
+            </p>
+          </div>
+        );
+      })()}
     </section>
   );
 }

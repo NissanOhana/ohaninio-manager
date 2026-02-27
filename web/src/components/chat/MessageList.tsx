@@ -1,4 +1,5 @@
 import { useState } from "react";
+import Markdown from "react-markdown";
 import {
   Brain,
   Wrench,
@@ -7,7 +8,6 @@ import {
   ChevronRight,
   ChevronDown,
   Clock,
-  Zap,
   Bot,
   User,
 } from "lucide-react";
@@ -165,8 +165,8 @@ export function AssistantTextBubble({ content }: { content: string }) {
       <div className="w-6 h-6 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center shrink-0 mt-0.5">
         <Bot size={13} className="text-[var(--accent-blue)]" />
       </div>
-      <div className="max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed">
-        {content}
+      <div className="max-w-[85%] rounded-xl px-3.5 py-2.5 text-sm bg-[var(--bg-tertiary)] border border-[var(--border-color)] text-[var(--text-primary)] leading-relaxed prose prose-sm dark:prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0.5 prose-pre:my-2 prose-code:text-[var(--accent-blue)] prose-code:bg-[var(--bg-primary)] prose-code:px-1 prose-code:py-0.5 prose-code:rounded prose-code:text-xs max-w-none">
+        <Markdown>{content}</Markdown>
       </div>
     </div>
   );
@@ -227,7 +227,6 @@ export function renderAgentTurn(messages: AgentMessage[]) {
 
 export function ResultCard({ message }: { message: Extract<AgentMessage, { type: "agent:complete" }> }) {
   const duration = message.durationMs ? `${(message.durationMs / 1000).toFixed(1)}s` : null;
-  const cost = message.costUsd ? `$${message.costUsd.toFixed(4)}` : null;
 
   return (
     <div className="border border-emerald-300/30 dark:border-emerald-800/40 bg-emerald-50/30 dark:bg-emerald-950/10 rounded-lg px-3.5 py-2.5 animate-fade-in">
@@ -237,11 +236,6 @@ export function ResultCard({ message }: { message: Extract<AgentMessage, { type:
         {duration && (
           <span className="flex items-center gap-1 text-[var(--text-muted)]">
             <Clock size={10} /> {duration}
-          </span>
-        )}
-        {cost && (
-          <span className="flex items-center gap-1 text-[var(--text-muted)]">
-            <Zap size={10} /> {cost}
           </span>
         )}
       </div>

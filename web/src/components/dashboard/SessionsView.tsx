@@ -1,10 +1,21 @@
-import { Radio, Clock, MessageSquare, GitBranch, Loader2 } from "lucide-react";
+import { Radio, Clock, MessageSquare, GitBranch, Loader2, GitFork, Timer } from "lucide-react";
 import type { LiveSession, SessionEntry } from "../../lib/api";
 
 interface SessionsViewProps {
   liveSessions: LiveSession[];
   todaySessions: (SessionEntry & { projectName: string })[];
   onSelectSession: (session: SessionEntry & { projectName: string }) => void;
+}
+
+function formatDuration(startStr: string, endStr: string): string {
+  const diff = new Date(endStr).getTime() - new Date(startStr).getTime();
+  if (diff < 0) return "";
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "<1m";
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins > 0 ? `${hours}h${remMins}m` : `${hours}h`;
 }
 
 export function SessionsView({ liveSessions, todaySessions, onSelectSession }: SessionsViewProps) {
@@ -64,6 +75,12 @@ export function SessionsView({ liveSessions, todaySessions, onSelectSession }: S
                       }`}>
                         {isThinking ? "Thinking" : "Idle"}
                       </span>
+                      {session.isSidechain && (
+                        <span className="text-[10px] font-medium text-[var(--accent-yellow)] bg-[var(--accent-yellow)]/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                          <GitFork size={9} />
+                          Sidechain
+                        </span>
+                      )}
                       {session.gitBranch && (
                         <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-0.5 truncate">
                           <GitBranch size={9} />
@@ -131,6 +148,12 @@ export function SessionsView({ liveSessions, todaySessions, onSelectSession }: S
                       {isLive && (
                         <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] shadow-[0_0_4px_rgba(34,197,94,0.4)]" />
                       )}
+                      {session.isSidechain && (
+                        <span className="text-[10px] font-medium text-[var(--accent-yellow)] bg-[var(--accent-yellow)]/10 px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                          <GitFork size={9} />
+                          Sidechain
+                        </span>
+                      )}
                       {session.gitBranch && (
                         <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-0.5 truncate">
                           <GitBranch size={9} />
@@ -144,6 +167,12 @@ export function SessionsView({ liveSessions, todaySessions, onSelectSession }: S
                         <MessageSquare size={9} />
                         {session.messageCount} msgs
                       </span>
+                      {session.created && session.modified && (
+                        <span className="text-[10px] text-[var(--text-muted)] flex items-center gap-0.5">
+                          <Timer size={9} />
+                          {formatDuration(session.created, session.modified)}
+                        </span>
+                      )}
                       {session.prNumber && (
                         <span className="text-[10px] text-[var(--accent-purple)]">
                           PR #{session.prNumber}

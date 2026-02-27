@@ -1,20 +1,10 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { Compass, Loader2 } from "lucide-react";
 import { useWs } from "../../context/WebSocketContext";
 import { AssistantTextBubble, ThinkingBubble, ToolGroup, ResultCard, ErrorCard, LoadingDots, groupMessages } from "../chat/MessageList";
 import type { AgentMessage } from "../../lib/types";
 
-const TIMEFRAMES = [
-  { id: "today", label: "Today" },
-  { id: "yesterday", label: "Yesterday" },
-  { id: "week", label: "This Week" },
-  { id: "month", label: "This Month" },
-] as const;
-
-type Timeframe = typeof TIMEFRAMES[number]["id"];
-
-export function LearningPanel() {
-  const [selectedTimeframe, setSelectedTimeframe] = useState<Timeframe>("today");
+export function WorkPlanPanel() {
   const [running, setRunning] = useState(false);
   const [messages, setMessages] = useState<AgentMessage[]>([]);
   const [streamingText, setStreamingText] = useState("");
@@ -22,17 +12,15 @@ export function LearningPanel() {
   const { send, subscribeAgent } = useWs();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentMsgsRef = useRef<AgentMessage[]>([]);
-  const isLearningRef = useRef(false);
+  const isWorkPlanRef = useRef(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, streamingText]);
 
-  // Subscribe to agent events from shared WebSocket
   useEffect(() => {
     const unsubscribe = subscribeAgent((data) => {
-      // Only process events when we initiated a learning action
-      if (!isLearningRef.current) return;
+      if (!isWorkPlanRef.current) return;
 
       if (data.type === "agent:start") {
         setRunning(true);
@@ -62,7 +50,7 @@ export function LearningPanel() {
         setRunning(false);
         setStreamingText("");
         setHasResult(true);
-        isLearningRef.current = false;
+        isWorkPlanRef.current = false;
         return;
       }
     });
@@ -70,12 +58,12 @@ export function LearningPanel() {
     return unsubscribe;
   }, [subscribeAgent]);
 
-  const handleAnalyze = useCallback(() => {
+  const handlePlan = useCallback(() => {
     if (running) return;
     setHasResult(false);
-    isLearningRef.current = true;
-    send({ action: "learning", timeframe: selectedTimeframe });
-  }, [running, selectedTimeframe, send]);
+    isWorkPlanRef.current = true;
+    send({ action: "work_plan" });
+  }, [running, send]);
 
   const groups = groupMessages(messages);
 
@@ -83,45 +71,26 @@ export function LearningPanel() {
     <section className="bg-[var(--bg-secondary)] rounded-xl border border-[var(--border-color)] p-5">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider flex items-center gap-2">
-          <GraduationCap size={14} className="text-[var(--accent-purple)]" />
-          What Did I Learn?
+          <Compass size={14} className="text-[var(--accent-green)]" />
+          What Should I Do Now?
         </h2>
-      </div>
-
-      {/* Time frame picker + CTA */}
-      <div className="flex items-center gap-2 mb-4">
-        <div className="flex items-center bg-[var(--bg-tertiary)] rounded-lg p-0.5 border border-[var(--border-color)]">
-          {TIMEFRAMES.map((tf) => (
-            <button
-              key={tf.id}
-              onClick={() => { setSelectedTimeframe(tf.id); setHasResult(false); }}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${
-                selectedTimeframe === tf.id
-                  ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm"
-                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
-              }`}
-            >
-              {tf.label}
-            </button>
-          ))}
-        </div>
 
         <button
-          onClick={handleAnalyze}
+          onClick={handlePlan}
           disabled={running}
           className={`px-4 py-1.5 rounded-lg text-xs font-medium transition-all ${
             running
-              ? "bg-[var(--accent-purple)]/20 text-[var(--accent-purple)] cursor-wait"
-              : "bg-[var(--accent-purple)] text-white hover:opacity-90"
+              ? "bg-[var(--accent-green)]/20 text-[var(--accent-green)] cursor-wait"
+              : "bg-[var(--accent-green)] text-white hover:opacity-90"
           }`}
         >
           {running ? (
             <span className="flex items-center gap-1.5">
               <Loader2 size={12} className="animate-spin" />
-              Analyzing...
+              Thinking...
             </span>
           ) : (
-            "Analyze"
+            "Plan my work"
           )}
         </button>
       </div>
@@ -157,7 +126,7 @@ export function LearningPanel() {
       {!running && messages.length === 0 && (
         <div className="text-center py-4">
           <p className="text-xs text-[var(--text-muted)]">
-            Select a time frame and click Analyze to get insights on your session learnings
+            Get AI-powered suggestions for what to work on next based on your active sessions and project statuses
           </p>
         </div>
       )}

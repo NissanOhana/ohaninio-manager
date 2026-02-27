@@ -78,6 +78,21 @@ export function handleWsMessage(ws: any, data: any, broadcast: (data: unknown) =
     runAgent(ws, "learning", prompt, broadcast);
   }
 
+  if (data.action === "insights") {
+    const prompt = buildInsightsPrompt();
+    runAgent(ws, "insights", prompt, broadcast);
+  }
+
+  if (data.action === "work_plan") {
+    const prompt = buildWorkPlanPrompt();
+    runAgent(ws, "work_plan", prompt, broadcast);
+  }
+
+  if (data.action === "session_insights") {
+    const prompt = buildSessionInsightsPrompt(data.sessionId as string);
+    runAgent(ws, "session_insights", prompt, broadcast);
+  }
+
   if (data.action === "chat_stop" || data.action === "stop") {
     // Stop all agents owned by this client
     for (const [id, entry] of agents) {
@@ -116,10 +131,18 @@ async function runAgent(ws: any, mode: string, question: string, broadcast: (dat
   }
 
   // Build prompt based on mode
-  const prompt = mode === "learning" ? question : buildChatPrompt(question);
+  const agentModes = ["learning", "insights", "work_plan", "session_insights"];
+  const prompt = agentModes.includes(mode) ? question : buildChatPrompt(question);
 
   // Create run record
-  const run = RunStore.start(mode === "learning" ? `Learning analysis` : question);
+  const modeLabels: Record<string, string> = {
+    learning: "Learning analysis",
+    insights: "Insights report",
+    work_plan: "Work plan",
+    session_insights: "Session analysis",
+  };
+  const runLabel = modeLabels[mode] || question;
+  const run = RunStore.start(runLabel);
   broadcast({ type: "run:started", run: { id: run.id, question: run.question, startedAt: run.startedAt } });
 
   const agent = new CLIProvider();
@@ -326,6 +349,204 @@ function buildLearningPrompt(timeframe: string): string {
   ].join("\n");
 
   return `${context}\n\n---\n\nAnalyze what the user learned ${label}.`;
+}
+
+function buildInsightsPrompt(): string {
+  const statuses = getProjectStatuses();
+  const memHealth = getMemoryHealth();
+  const usageStats = getStats();
+  const allHistory = readHistory();
+
+  // Last 7 days of history
+  const weekAgo = Date.now() - 7 * 86400000;
+  const recentHistory = allHistory.filter((e) => e.timestamp >= weekAgo);
+
+  // Group by project
+  const projectHistoryMap = new Map<string, { count: number; prompts: string[] }>();
+  for (const entry of recentHistory) {
+    const proj = entry.project || "unknown";
+    const existing = projectHistoryMap.get(proj) || { count: 0, prompts: [] };
+    existing.count++;
+    if (existing.prompts.length < 5) {
+      existing.prompts.push(entry.display?.slice(0, 100) || "");
+    }
+    projectHistoryMap.set(proj, existing);
+  }
+
+  const projectSummaries = Array.from(projectHistoryMap.entries())
+    .sort((a, b) => b[1].count - a[1].count)
+    .slice(0, 10)
+    .map(([proj, data]) => `- **${proj}**: ${data.count} prompts. Sample: ${data.prompts.slice(0, 3).join(" | ")}`)
+    .join("\n");
+
+  return [
+    "You are an insights analyst for a developer's Claude Code usage. Generate a comprehensive insights report.",
+    "Output your analysis in markdown with these sections:",
+    "",
+    "## Friction Patterns",
+    "Identify recurring problems, errors, retries, or inefficiencies. For each pattern:",
+    "- Name it concisely",
+    "- Rate severity: high, medium, or low",
+    "- Describe the pattern and impact",
+    "",
+    "## CLAUDE.md Suggestions",
+    "Suggest specific additions to CLAUDE.md files that would improve the workflow:",
+    "- What to add and where",
+    "- Why it would help",
+    "",
+    "## Suggested Skills",
+    "Propose custom skills (`.claude/skills/`) that could automate repetitive workflows:",
+    "- Skill name and purpose",
+    "- What it would automate",
+    "",
+    "Be specific, reference actual project data, and prioritize actionable insights.",
+    "",
+    "---",
+    "",
+    `## Activity (last 7 days)`,
+    `Total prompts: ${recentHistory.length}`,
+    "",
+    "### Projects:",
+    projectSummaries || "No recent activity.",
+    "",
+    "### Project Statuses:",
+    ...statuses.slice(0, 10).map(
+      (s) => `- **${s.projectName}** [${s.priority}]: ${s.summary}`,
+    ),
+    "",
+    "### Usage:",
+    `- Today: ${usageStats.todayMessages} messages, ${usageStats.todaySessions} sessions`,
+    `- This week: ${usageStats.weekMessages} messages, ${usageStats.weekSessions} sessions`,
+    `- All time: ${usageStats.totalMessages} messages, ${usageStats.totalSessions} sessions`,
+    "",
+    "### Memory Health:",
+    ...memHealth
+      .filter((h) => !h.projectName.includes("workspaces-"))
+      .slice(0, 8)
+      .map((h) => `- ${h.projectName}: ${h.status}`),
+  ].join("\n");
+}
+
+function buildWorkPlanPrompt(): string {
+  const statuses = getProjectStatuses();
+  const todaySessions = getTodaySessions();
+  const liveSessions = getLiveSessions();
+  const stats = getHistoryStats();
+  const memHealth = getMemoryHealth();
+  const usageStats = getStats();
+
+  const now = new Date();
+  const hour = now.getHours();
+  const timeOfDay = hour < 12 ? "morning" : hour < 17 ? "afternoon" : "evening";
+
+  return [
+    "You are a work planning assistant. The user wants to know what they should work on next.",
+    "Analyze their current project states, active sessions, and recent activity to suggest prioritized next steps.",
+    "",
+    "Provide:",
+    "1. **Right Now**: The single most important thing to do next (be specific)",
+    "2. **Priority Queue**: 3-5 tasks ranked by urgency/impact",
+    "3. **Context**: Why these matter based on project status and recent momentum",
+    "4. **Blocked Items**: Anything that needs attention but is waiting on something",
+    "",
+    "Be specific, actionable, and reference actual project data. Use markdown formatting.",
+    `It's currently ${timeOfDay} (${now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: true })}).`,
+    "",
+    "---",
+    "",
+    `## Current State`,
+    `Active sessions: ${liveSessions.length}`,
+    `Today's sessions: ${todaySessions.length}`,
+    `Prompts today: ${stats.today} | This week: ${stats.thisWeek}`,
+    "",
+    "### Active Sessions:",
+    ...(liveSessions.length > 0
+      ? liveSessions.map(
+          (s) =>
+            `- **${s.projectName}** [${s.status}]: ${s.summary} (${s.messageCount} msgs, branch: ${s.gitBranch || "none"})`,
+        )
+      : ["No active sessions."]),
+    "",
+    "### Project Statuses:",
+    ...statuses.slice(0, 15).map(
+      (s) =>
+        `- **${s.projectName}** [${s.priority}]: ${s.summary}${s.openPRs.length > 0 ? ` | ${s.openPRs.length} open PRs` : ""}${s.signals.length > 0 ? ` | ${s.signals.slice(0, 2).join(", ")}` : ""}`,
+    ),
+    "",
+    "### Today's Session History:",
+    ...(todaySessions.length > 0
+      ? todaySessions.slice(0, 10).map(
+          (s) =>
+            `- [${new Date(s.modified).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })}] ${s.projectName}: ${s.summary}`,
+        )
+      : ["No sessions today yet."]),
+    "",
+    "### Memory Health:",
+    ...memHealth
+      .filter((h) => !h.projectName.includes("workspaces-"))
+      .slice(0, 8)
+      .map(
+        (h) =>
+          `- ${h.projectName}: ${h.status}${h.sessionsSinceUpdate > 0 ? ` (+${h.sessionsSinceUpdate} sessions since update)` : ""}`,
+      ),
+  ].join("\n");
+}
+
+function buildSessionInsightsPrompt(sessionId: string): string {
+  // Find the session across all projects
+  const projects = listProjects();
+  let targetSession: any = null;
+  let projectName = "";
+
+  for (const project of projects) {
+    const session = project.sessions.find((s) => s.sessionId === sessionId);
+    if (session) {
+      targetSession = session;
+      projectName = project.displayName;
+      break;
+    }
+  }
+
+  if (!targetSession) {
+    return "Session not found. Please provide a valid session ID.";
+  }
+
+  // Read session content for analysis
+  let sessionContent = "";
+  if (targetSession.fullPath) {
+    try {
+      const content = readFileSync(targetSession.fullPath, "utf-8");
+      // Take first 50K chars to keep prompt manageable
+      sessionContent = content.slice(0, 50_000);
+    } catch { /* file read error */ }
+  }
+
+  return [
+    "You are a session analyst. Analyze this Claude Code session and provide insights.",
+    "",
+    "Provide:",
+    "1. **Summary**: What was accomplished in this session",
+    "2. **Key Decisions**: Important choices or turning points",
+    "3. **Patterns**: Workflow patterns, tool usage, or approaches used",
+    "4. **Friction Points**: Where things got stuck or could be improved",
+    "5. **Learnings**: What can be learned from this session for future work",
+    "",
+    "Be specific and reference actual content from the session. Use markdown formatting.",
+    "",
+    "---",
+    "",
+    `## Session Info`,
+    `- **Project**: ${projectName}`,
+    `- **Summary**: ${targetSession.summary}`,
+    `- **Messages**: ${targetSession.messageCount}`,
+    `- **Branch**: ${targetSession.gitBranch || "none"}`,
+    `- **Created**: ${targetSession.created}`,
+    `- **Modified**: ${targetSession.modified}`,
+    `- **Sidechain**: ${targetSession.isSidechain ? "Yes" : "No"}`,
+    "",
+    "## Session Content (JSONL):",
+    sessionContent || "(Session content not available)",
+  ].join("\n");
 }
 
 // ─── Cleanup ────────────────────────────────────────────────────

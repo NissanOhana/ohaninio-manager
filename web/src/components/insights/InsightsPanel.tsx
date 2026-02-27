@@ -1,8 +1,13 @@
 import { useState, useEffect } from "react";
-import { Flame, Lightbulb, FileCode, Sparkles } from "lucide-react";
+import { Flame, Lightbulb, FileCode, Sparkles, RefreshCw } from "lucide-react";
 import { api, type InsightsReport } from "../../lib/api";
 
-export function InsightsPanel() {
+interface InsightsPanelProps {
+  onRegenerate?: () => void;
+  regenerating?: boolean;
+}
+
+export function InsightsPanel({ onRegenerate, regenerating }: InsightsPanelProps = {}) {
   const [data, setData] = useState<InsightsReport | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -22,7 +27,18 @@ export function InsightsPanel() {
       <div className="text-center py-12">
         <Sparkles size={32} className="text-[var(--text-muted)] mx-auto mb-3" />
         <p className="text-[var(--text-muted)] mb-2">No insights report found</p>
-        <p className="text-xs text-[var(--text-muted)]">Run /insights in Claude Code to generate one</p>
+        {onRegenerate ? (
+          <button
+            onClick={onRegenerate}
+            disabled={regenerating}
+            className="mt-3 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--accent-purple)]/15 text-[var(--accent-purple)] text-sm font-medium hover:bg-[var(--accent-purple)]/25 transition-colors disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={regenerating ? "animate-spin" : ""} />
+            {regenerating ? "Generating..." : "Generate Insights Report"}
+          </button>
+        ) : (
+          <p className="text-xs text-[var(--text-muted)]">Run /insights in Claude Code to generate one</p>
+        )}
       </div>
     );
   }
@@ -40,7 +56,19 @@ export function InsightsPanel() {
           <Sparkles size={20} className="text-purple-400" />
           Insights Report
         </h2>
-        <span className="text-sm text-[var(--text-muted)]">Generated {reportDate}</span>
+        <div className="flex items-center gap-3">
+          <span className="text-sm text-[var(--text-muted)]">Generated {reportDate}</span>
+          {onRegenerate && (
+            <button
+              onClick={onRegenerate}
+              disabled={regenerating}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[var(--bg-tertiary)] text-[var(--text-secondary)] text-xs font-medium hover:text-[var(--text-primary)] border border-[var(--border-color)] transition-colors disabled:opacity-50"
+            >
+              <RefreshCw size={12} className={regenerating ? "animate-spin" : ""} />
+              {regenerating ? "Regenerating..." : "Regenerate"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Friction Patterns */}

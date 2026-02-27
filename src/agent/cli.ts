@@ -124,7 +124,12 @@ export class CLIProvider implements AgentProvider {
       "--dangerously-skip-permissions",
     ];
     if (opts.model) args.push("--model", opts.model);
-    args.push(prompt);
+
+    // Pipe prompt via stdin instead of CLI arg to avoid ARG_MAX limits on long prompts
+    const useStdin = prompt.length > 100_000;
+    if (!useStdin) {
+      args.push(prompt);
+    }
 
     // Remove CLAUDECODE env var to allow spawning Claude CLI from within a Claude Code session
     const env = { ...process.env };
@@ -132,10 +137,16 @@ export class CLIProvider implements AgentProvider {
 
     this.proc = spawn("claude", args, {
       cwd: opts.cwd || process.cwd(),
-      stdio: ["ignore", "pipe", "pipe"],
+      stdio: [useStdin ? "pipe" : "ignore", "pipe", "pipe"],
       env,
       detached: true,
     });
+
+    // Write prompt to stdin for long prompts
+    if (useStdin && this.proc.stdin) {
+      this.proc.stdin.write(prompt);
+      this.proc.stdin.end();
+    }
 
     // Event queue for async generator
     const eventQueue: AgentEvent[] = [];

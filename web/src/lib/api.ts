@@ -138,6 +138,8 @@ export const api = {
   memoryHealth: () => fetchJson<{ health: MemoryHealthEntry[] }>("/api/memory-health"),
   insights: () => fetchJson<InsightsReport>("/api/insights"),
   todayHistory: () => fetchJson<{ entries: HistoryEntry[] }>("/api/history/today"),
+  session: (id: string) =>
+    fetchJson<{ session: SessionEntry & { projectName: string } }>(`/api/sessions/${encodeURIComponent(id)}`),
   todaySessions: () => fetchJson<{ sessions: (SessionEntry & { projectName: string })[] }>("/api/sessions/today"),
   historyStats: () => fetchJson<HistoryStats>("/api/history/stats"),
   runs: () => fetchJson<{ runs: Omit<RunRecord, "messages">[] }>("/api/runs"),

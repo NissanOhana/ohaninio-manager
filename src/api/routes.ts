@@ -99,6 +99,22 @@ export function handleApi(url: URL): Response | null {
     return jsonResponse({ sessions: getTodaySessions() });
   }
 
+  // GET /api/sessions/:id (single session by ID for deep-linking)
+  const singleSessionMatch = path.match(/^\/api\/sessions\/([a-f0-9-]{36})$/);
+  if (singleSessionMatch) {
+    const sessionId = singleSessionMatch[1];
+    const projects = listProjects();
+    for (const project of projects) {
+      const session = project.sessions.find((s) => s.sessionId === sessionId);
+      if (session) {
+        return jsonResponse({
+          session: { ...session, projectName: project.displayName },
+        });
+      }
+    }
+    return jsonResponse({ error: "Session not found" }, 404);
+  }
+
   // GET /api/sessions/live
   if (path === "/api/sessions/live") {
     const threshold = Number(url.searchParams.get("threshold")) || 15;

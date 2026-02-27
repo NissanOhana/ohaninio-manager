@@ -32,6 +32,69 @@ function readJsonlMeta(filePath: string): Partial<SessionEntry> | null {
   }
 }
 
+/** Count user + assistant messages in a JSONL file (reads full file) */
+function countMessages(filePath: string): number {
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    let count = 0;
+    for (const line of content.split("\n")) {
+      if (!line) continue;
+      try {
+        const entry = JSON.parse(line);
+        if (entry.type === "user" || entry.type === "assistant") {
+          count++;
+        }
+      } catch { /* skip malformed lines */ }
+    }
+    return count;
+  } catch {
+    return 0;
+  }
+}
+
+/** Generate a better summary from session JSONL by reading multiple user messages */
+function generateSummary(filePath: string, firstPrompt: string): string {
+  // If firstPrompt is already decent, use its first line
+  const firstLine = firstPrompt ? stripTags(firstPrompt.split("\n")[0]).slice(0, 120) : "";
+  if (firstLine.length >= 30) return firstLine;
+
+  // firstPrompt too short — try to build a better summary from multiple messages
+  try {
+    const fd = openSync(filePath, "r");
+    const buf = Buffer.alloc(200_000); // Read more to find multiple messages
+    const bytesRead = readSync(fd, buf, 0, buf.length, 0);
+    closeSync(fd);
+    const chunk = buf.toString("utf-8", 0, bytesRead);
+    const prompts: string[] = [];
+    for (const line of chunk.split("\n")) {
+      if (!line) continue;
+      try {
+        const entry = JSON.parse(line);
+        if (entry.type === "user" && !entry.toolUseResult) {
+          let text = "";
+          if (typeof entry.message?.content === "string") {
+            text = entry.message.content;
+          } else if (Array.isArray(entry.message?.content)) {
+            const textBlock = entry.message.content.find((b: { type: string }) => b.type === "text");
+            if (textBlock?.text) text = textBlock.text;
+          }
+          text = stripTags(text).trim();
+          if (text && !text.startsWith("[Request interrupted")) {
+            prompts.push(text.split("\n")[0].slice(0, 80));
+            if (prompts.length >= 3) break;
+          }
+        }
+      } catch { /* skip */ }
+    }
+    if (prompts.length > 1) {
+      return prompts.join(" → ").slice(0, 120);
+    }
+    if (prompts.length === 1) return prompts[0].slice(0, 120);
+  } catch { /* fall through */ }
+
+  return firstLine || "Active session";
+}
+
 /** Scan a JSONL file for the first real user prompt (reads first ~100KB only) */
 function readFirstPrompt(filePath: string): string {
   try {
@@ -187,17 +250,15 @@ export function readSessionIndex(projectDirName: string): SessionEntry[] {
         } catch {
           created = new Date(fileMtimeMs).toISOString();
         }
-        // Use first line of prompt as summary, cleaned up
-        const summary = firstPrompt
-          ? stripTags(firstPrompt.split("\n")[0]).slice(0, 120)
-          : "Active session";
+        const summary = generateSummary(filePath, firstPrompt);
+        const msgCount = countMessages(filePath);
         indexed.set(sessionId, {
           sessionId,
           fullPath: filePath,
           fileMtime: fileMtimeMs,
           firstPrompt,
           summary,
-          messageCount: 0,
+          messageCount: msgCount,
           created,
           modified: new Date(fileMtimeMs).toISOString(),
           gitBranch: meta?.gitBranch || "",

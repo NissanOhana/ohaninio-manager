@@ -1,21 +1,32 @@
-import { useState } from "react";
+import { useCallback } from "react";
 import { useOverview } from "./hooks/useOverview";
-import { useWebSocket } from "./hooks/useWebSocket";
+import { useHashRouter } from "./hooks/useHashRouter";
+import type { Route } from "./hooks/useHashRouter";
+import { WebSocketProvider, useWs } from "./context/WebSocketContext";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AgentPage } from "./pages/AgentPage";
 import { RefreshCw, Wifi, WifiOff, LayoutDashboard, MessageCircle, Lightbulb, Loader2 } from "lucide-react";
 import { ThemeToggle } from "./components/ui/ThemeToggle";
+import type { OverviewData, LiveSession } from "./lib/api";
 
-type Page = "dashboard" | "agent" | "insights";
+function AppContent({
+  data,
+  loading,
+  error,
+  refresh,
+}: {
+  data: OverviewData | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+}) {
+  const { connected, agentRunning, send } = useWs();
+  const { route, navigate } = useHashRouter();
+  const page = route.page;
 
-export default function App() {
-  const { data, loading, error, refresh, setOverviewData, setLiveSessions } = useOverview();
-  const { connected, agentRunning } = useWebSocket({
-    onOverviewData: setOverviewData,
-    onLiveSessions: setLiveSessions,
-    onDataChanged: refresh, // fallback for any legacy data_changed messages
-  });
-  const [page, setPage] = useState<Page>("dashboard");
+  const handleRegenerateInsights = useCallback(() => {
+    send({ action: "insights" });
+  }, [send]);
 
   if (loading && !data) {
     return (
@@ -49,7 +60,7 @@ export default function App() {
           {/* Page toggle */}
           <div className="flex items-center ml-4 bg-[var(--bg-tertiary)] rounded-lg p-0.5 border border-[var(--border-color)]">
             <button
-              onClick={() => setPage("dashboard")}
+              onClick={() => navigate({ page: "dashboard" })}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 page === "dashboard"
                   ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm"
@@ -60,7 +71,7 @@ export default function App() {
               Dashboard
             </button>
             <button
-              onClick={() => setPage("agent")}
+              onClick={() => navigate({ page: "agent" })}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 page === "agent"
                   ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm"
@@ -71,7 +82,7 @@ export default function App() {
               Agent
             </button>
             <button
-              onClick={() => setPage("insights")}
+              onClick={() => navigate({ page: "insights" })}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
                 page === "insights"
                   ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm"
@@ -114,10 +125,29 @@ export default function App() {
           data={data}
           loading={loading}
           showInsights={page === "insights"}
+          onRegenerateInsights={handleRegenerateInsights}
+          insightsRegenerating={agentRunning}
+          projectId={route.page === "dashboard" ? route.projectId : undefined}
+          sessionId={route.page === "dashboard" ? route.sessionId : undefined}
+          navigate={navigate}
         />
       ) : (
         <AgentPage />
       )}
     </div>
+  );
+}
+
+export default function App() {
+  const { data, loading, error, refresh, setOverviewData, setLiveSessions } = useOverview();
+
+  return (
+    <WebSocketProvider
+      onOverviewData={setOverviewData}
+      onLiveSessions={setLiveSessions}
+      onDataChanged={refresh}
+    >
+      <AppContent data={data} loading={loading} error={error} refresh={refresh} />
+    </WebSocketProvider>
   );
 }

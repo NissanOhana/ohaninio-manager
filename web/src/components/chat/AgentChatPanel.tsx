@@ -213,7 +213,6 @@ function UserQuestionBubble({ content }: { content: string }) {
 
 function ResultCard({ message }: { message: Extract<AgentMessage, { type: "agent:complete" }> }) {
   const duration = message.durationMs ? `${(message.durationMs / 1000).toFixed(1)}s` : null;
-  const cost = message.costUsd ? `$${message.costUsd.toFixed(4)}` : null;
 
   return (
     <div className="border border-emerald-300/30 dark:border-emerald-800/40 bg-emerald-50/30 dark:bg-emerald-950/10 rounded-lg px-3.5 py-2.5 animate-fade-in">
@@ -223,11 +222,6 @@ function ResultCard({ message }: { message: Extract<AgentMessage, { type: "agent
         {duration && (
           <span className="flex items-center gap-1 text-[var(--text-muted)]">
             <Clock size={10} /> {duration}
-          </span>
-        )}
-        {cost && (
-          <span className="flex items-center gap-1 text-[var(--text-muted)]">
-            <Zap size={10} /> {cost}
           </span>
         )}
       </div>

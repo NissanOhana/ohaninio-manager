@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Bot, ArrowLeft } from "lucide-react";
+import { useWs } from "../context/WebSocketContext";
 import { RunHistorySidebar } from "../components/chat/RunHistorySidebar";
 import { ChatInput } from "../components/chat/ChatInput";
 import {
@@ -13,10 +14,10 @@ import type { AgentMessage, ChatMessage } from "../lib/types";
 
 export function AgentPage() {
   const { runs, selectedRun, fetchRuns, selectRun } = useRunHistory();
+  const { send, subscribeAgent } = useWs();
   const [conversation, setConversation] = useState<ChatMessage[]>([]);
   const [streamingText, setStreamingText] = useState("");
   const [running, setRunning] = useState(false);
-  const wsRef = useRef<WebSocket | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentAgentMsgsRef = useRef<AgentMessage[]>([]);
 
@@ -26,75 +27,73 @@ export function AgentPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [conversation, streamingText, selectedRun]);
 
-  // WebSocket connection for chat
+  // Subscribe to agent events from shared WebSocket
   useEffect(() => {
-    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
-    wsRef.current = ws;
-
-    ws.onmessage = (e) => {
-      try {
-        const data = JSON.parse(e.data);
-
-        if (data.type === "agent:start") {
-          setRunning(true);
-          setStreamingText("");
-          currentAgentMsgsRef.current = [];
-          return;
-        }
-
-        if (data.type === "agent:text_delta") {
-          setStreamingText((prev) => prev + data.content);
-          return;
-        }
-
-        if (data.type === "agent:text" || data.type === "agent:thinking" || data.type === "agent:tool") {
-          currentAgentMsgsRef.current.push(data);
-          setConversation((prev) => {
-            const copy = [...prev];
-            const last = copy[copy.length - 1];
-            if (last && last.role === "agent") {
-              copy[copy.length - 1] = { ...last, messages: [...currentAgentMsgsRef.current] };
-            }
-            return copy;
-          });
-          if (data.type === "agent:text") {
-            setStreamingText("");
+    const unsubscribe = subscribeAgent((data) => {
+      if (data.type === "agent:start") {
+        setRunning(true);
+        setStreamingText("");
+        currentAgentMsgsRef.current = [];
+        // Only add agent placeholder if we don't already have one at the end
+        setConversation((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.role === "agent" && (!last.messages || last.messages.length === 0)) {
+            return prev; // already have an empty agent placeholder
           }
-          return;
-        }
+          return [...prev, { role: "agent", messages: [] }];
+        });
+        return;
+      }
 
-        if (data.type === "agent:complete" || data.type === "agent:error") {
-          currentAgentMsgsRef.current.push(data);
-          setConversation((prev) => {
-            const copy = [...prev];
-            const last = copy[copy.length - 1];
-            if (last && last.role === "agent") {
-              copy[copy.length - 1] = { ...last, messages: [...currentAgentMsgsRef.current] };
-            }
-            return copy;
-          });
-          setRunning(false);
+      if (data.type === "agent:text_delta") {
+        setStreamingText((prev) => prev + (data.content as string));
+        return;
+      }
+
+      if (data.type === "agent:text" || data.type === "agent:thinking" || data.type === "agent:tool") {
+        currentAgentMsgsRef.current.push(data as unknown as AgentMessage);
+        setConversation((prev) => {
+          const copy = [...prev];
+          const last = copy[copy.length - 1];
+          if (last && last.role === "agent") {
+            copy[copy.length - 1] = { ...last, messages: [...currentAgentMsgsRef.current] };
+          }
+          return copy;
+        });
+        if (data.type === "agent:text") {
           setStreamingText("");
-          fetchRuns(); // Refresh run list
-          return;
         }
+        return;
+      }
 
-        if (data.type === "run:started" || data.type === "run:completed") {
-          fetchRuns();
-          return;
-        }
-      } catch {}
-    };
+      if (data.type === "agent:complete" || data.type === "agent:error") {
+        currentAgentMsgsRef.current.push(data as unknown as AgentMessage);
+        setConversation((prev) => {
+          const copy = [...prev];
+          const last = copy[copy.length - 1];
+          if (last && last.role === "agent") {
+            copy[copy.length - 1] = { ...last, messages: [...currentAgentMsgsRef.current] };
+          }
+          return copy;
+        });
+        setRunning(false);
+        setStreamingText("");
+        fetchRuns();
+        return;
+      }
 
-    return () => {
-      ws.close();
-    };
-  }, [fetchRuns]);
+      if (data.type === "run:started" || data.type === "run:completed") {
+        fetchRuns();
+        return;
+      }
+    });
+
+    return unsubscribe;
+  }, [subscribeAgent, fetchRuns]);
 
   const handleSend = useCallback(
     (question: string) => {
-      if (running || !wsRef.current || isViewingHistory) return;
+      if (running || isViewingHistory) return;
 
       setConversation((prev) => [
         ...prev,
@@ -103,15 +102,15 @@ export function AgentPage() {
       ]);
       currentAgentMsgsRef.current = [];
 
-      wsRef.current.send(JSON.stringify({ action: "chat", question }));
+      send({ action: "chat", question });
     },
-    [running, isViewingHistory],
+    [running, isViewingHistory, send],
   );
 
   const handleStop = useCallback(() => {
-    wsRef.current?.send(JSON.stringify({ action: "chat_stop" }));
+    send({ action: "chat_stop" });
     setRunning(false);
-  }, []);
+  }, [send]);
 
   const handleBackToCurrent = useCallback(() => {
     selectRun(null);
