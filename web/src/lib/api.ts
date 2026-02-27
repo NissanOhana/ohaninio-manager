@@ -80,6 +80,36 @@ export interface LiveSession extends SessionEntry {
   status?: SessionStatus;
 }
 
+export interface DailyActivity {
+  date: string;
+  messageCount: number;
+  sessionCount: number;
+  toolCallCount: number;
+}
+
+export interface ModelUsage {
+  model: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+}
+
+export interface UsageStats {
+  totalSessions: number;
+  totalMessages: number;
+  todayMessages: number;
+  todaySessions: number;
+  todayToolCalls: number;
+  weekMessages: number;
+  weekSessions: number;
+  weekToolCalls: number;
+  dailyActivity: DailyActivity[];
+  modelUsage: ModelUsage[];
+  hourCounts: Record<string, number>;
+  firstSessionDate: string | null;
+}
+
 export interface OverviewData {
   projects: ProjectSummary[];
   stats: HistoryStats;
@@ -87,6 +117,7 @@ export interface OverviewData {
   liveSessions: LiveSession[];
   statuses: ProjectStatus[];
   memoryHealth: MemoryHealthEntry[];
+  usageStats: UsageStats;
 }
 
 export interface MemoryFile {

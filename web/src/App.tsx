@@ -3,21 +3,19 @@ import { useOverview } from "./hooks/useOverview";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { DashboardPage } from "./pages/DashboardPage";
 import { AgentPage } from "./pages/AgentPage";
-import { RefreshCw, Wifi, WifiOff, LayoutDashboard, MessageCircle } from "lucide-react";
+import { RefreshCw, Wifi, WifiOff, LayoutDashboard, MessageCircle, Lightbulb, Loader2 } from "lucide-react";
 import { ThemeToggle } from "./components/ui/ThemeToggle";
 
-type Page = "dashboard" | "agent";
+type Page = "dashboard" | "agent" | "insights";
 
 export default function App() {
   const { data, loading, error, refresh, setOverviewData, setLiveSessions } = useOverview();
-  const { connected } = useWebSocket({
+  const { connected, agentRunning } = useWebSocket({
     onOverviewData: setOverviewData,
     onLiveSessions: setLiveSessions,
     onDataChanged: refresh, // fallback for any legacy data_changed messages
   });
   const [page, setPage] = useState<Page>("dashboard");
-  const [showInsights, setShowInsights] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
 
   if (loading && !data) {
     return (
@@ -72,33 +70,20 @@ export default function App() {
               <MessageCircle size={13} />
               Agent
             </button>
+            <button
+              onClick={() => setPage("insights")}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                page === "insights"
+                  ? "bg-[var(--bg-secondary)] text-[var(--text-primary)] shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-secondary)]"
+              }`}
+            >
+              <Lightbulb size={13} />
+              Insights
+            </button>
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {page === "dashboard" && (
-            <>
-              <button
-                onClick={() => setShowInsights(!showInsights)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  showInsights
-                    ? "bg-purple-600/20 text-[var(--accent-purple)] border border-purple-600/30"
-                    : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]"
-                }`}
-              >
-                Insights
-              </button>
-              <button
-                onClick={() => setChatOpen(!chatOpen)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                  chatOpen
-                    ? "bg-blue-600/20 text-[var(--accent-blue)] border border-blue-600/30"
-                    : "bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)]"
-                }`}
-              >
-                Chat
-              </button>
-            </>
-          )}
           <button
             onClick={refresh}
             className="p-2 rounded-md bg-[var(--bg-tertiary)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-color)] transition-colors"
@@ -107,6 +92,12 @@ export default function App() {
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
           <ThemeToggle />
+          {agentRunning && (
+            <div className="flex items-center gap-1.5 text-xs text-[var(--accent-purple)] bg-[var(--accent-purple)]/10 px-2 py-1 rounded-md">
+              <Loader2 size={12} className="animate-spin" />
+              Agent working
+            </div>
+          )}
           <div className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
             {connected ? (
               <><Wifi size={14} className="text-[var(--accent-green)]" /> Live</>
@@ -118,13 +109,11 @@ export default function App() {
       </header>
 
       {/* Page content */}
-      {page === "dashboard" ? (
+      {page === "dashboard" || page === "insights" ? (
         <DashboardPage
           data={data}
           loading={loading}
-          showInsights={showInsights}
-          chatOpen={chatOpen}
-          onToggleChat={() => setChatOpen(!chatOpen)}
+          showInsights={page === "insights"}
         />
       ) : (
         <AgentPage />

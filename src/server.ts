@@ -2,7 +2,7 @@ import { join, extname } from "path";
 import { readFileSync, existsSync, watch } from "fs";
 import { homedir } from "os";
 import { handleApi, jsonResponse } from "./api/routes.js";
-import { handleWsMessage, cleanupChat } from "./ws/handler.js";
+import { handleWsMessage, cleanupChat, cleanupAllAgents } from "./ws/handler.js";
 import { buildOverviewData } from "./api/overview.js";
 import { getLiveSessions } from "./data/sessions.js";
 
@@ -124,6 +124,7 @@ export function startServer(options: ServerOptions = {}) {
         (filename.includes("sessions-index") ||
           filename.includes("history.jsonl") ||
           filename.includes("memory") ||
+          filename.includes("stats-cache") ||
           filename.endsWith(".jsonl"))
       ) {
         if (debounceTimer) clearTimeout(debounceTimer);
@@ -134,6 +135,7 @@ export function startServer(options: ServerOptions = {}) {
     });
 
     process.on("SIGINT", () => {
+      cleanupAllAgents();
       watcher.close();
       if (liveScanInterval) clearInterval(liveScanInterval);
       process.exit(0);

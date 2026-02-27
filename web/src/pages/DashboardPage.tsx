@@ -1,25 +1,20 @@
 import { useState } from "react";
 import type { OverviewData, SessionEntry } from "../lib/api";
 import { Sidebar } from "../components/sidebar/Sidebar";
-import { StatusCards } from "../components/dashboard/StatusCards";
-import { LiveSessions } from "../components/dashboard/LiveSessions";
-import { RecentSessions } from "../components/dashboard/RecentSessions";
-import { MemoryHealth } from "../components/dashboard/MemoryHealth";
-import { SessionChart } from "../components/dashboard/SessionChart";
+import { SessionsView } from "../components/dashboard/SessionsView";
+import { LearningPanel } from "../components/dashboard/LearningPanel";
+import { StatsPanel } from "../components/dashboard/StatsPanel";
 import { InsightsPanel } from "../components/insights/InsightsPanel";
 import { ProjectDetail } from "../components/dashboard/ProjectDetail";
 import { SessionDetail } from "../components/dashboard/SessionDetail";
-import { AgentChatPanel } from "../components/chat/AgentChatPanel";
 
 interface DashboardPageProps {
   data: OverviewData;
   loading: boolean;
   showInsights: boolean;
-  chatOpen: boolean;
-  onToggleChat: () => void;
 }
 
-export function DashboardPage({ data, loading, showInsights, chatOpen, onToggleChat }: DashboardPageProps) {
+export function DashboardPage({ data, loading, showInsights }: DashboardPageProps) {
   const [selectedProject, setSelectedProject] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<(SessionEntry & { projectName: string }) | null>(null);
 
@@ -62,22 +57,23 @@ export function DashboardPage({ data, loading, showInsights, chatOpen, onToggleC
             />
           ) : (
             <>
-              <StatusCards statuses={data.statuses} onSelectProject={handleSelectProject} />
+              {/* Sessions - Main hero view */}
+              <SessionsView
+                liveSessions={data.liveSessions || []}
+                todaySessions={data.todaySessions || []}
+                onSelectSession={handleSelectSession}
+              />
+
+              {/* Learning + Stats side by side */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <LiveSessions sessions={data.liveSessions || []} onSelectSession={handleSelectSession} />
-                <RecentSessions sessions={data.todaySessions || []} onSelectSession={handleSelectSession} />
-              </div>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <SessionChart projects={data.projects} />
-                <MemoryHealth health={data.memoryHealth} />
+                <LearningPanel />
+                {data.usageStats && <StatsPanel stats={data.usageStats} />}
               </div>
             </>
           )}
         </main>
       </div>
 
-      {/* Chat Panel */}
-      {chatOpen && <AgentChatPanel onClose={onToggleChat} />}
     </>
   );
 }

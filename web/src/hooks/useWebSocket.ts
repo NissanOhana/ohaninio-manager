@@ -6,6 +6,12 @@ interface WsMessage {
   [key: string]: unknown;
 }
 
+interface RunningAgent {
+  id: string;
+  mode: string;
+  elapsedMs: number;
+}
+
 interface UseWebSocketOptions {
   onDataChanged?: () => void;
   onOverviewData?: (data: OverviewData) => void;
@@ -14,6 +20,8 @@ interface UseWebSocketOptions {
 
 export function useWebSocket(options: UseWebSocketOptions = {}) {
   const [connected, setConnected] = useState(false);
+  const [agentRunning, setAgentRunning] = useState(false);
+  const [runningAgents, setRunningAgents] = useState<RunningAgent[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -49,6 +57,10 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
             opts.onLiveSessions(msg.sessions as LiveSession[]);
           } else if (msg.type === "data_changed" && opts.onDataChanged) {
             opts.onDataChanged();
+          } else if (msg.type === "agent:running") {
+            const agents = (msg.agents as RunningAgent[]) || [];
+            setRunningAgents(agents);
+            setAgentRunning(agents.length > 0);
           }
         } catch {}
       };
@@ -69,5 +81,5 @@ export function useWebSocket(options: UseWebSocketOptions = {}) {
     }
   }, []);
 
-  return { connected, send };
+  return { connected, send, agentRunning, runningAgents };
 }

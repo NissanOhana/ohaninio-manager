@@ -3,6 +3,7 @@ import { getMemoryHealth, getProjectMemory } from "../data/memory.js";
 import { getProjectStatuses } from "../data/status.js";
 import { getInsightsReport, getInsightsReportHtml } from "../data/insights.js";
 import { getTodayHistory, getHistoryStats } from "../data/history.js";
+import { getStats } from "../data/stats.js";
 import { RunStore } from "../chat/run-store.js";
 import { buildOverviewData } from "./overview.js";
 
@@ -102,6 +103,11 @@ export function handleApi(url: URL): Response | null {
   if (path === "/api/sessions/live") {
     const threshold = Number(url.searchParams.get("threshold")) || 15;
     return jsonResponse({ sessions: getLiveSessions(threshold) });
+  }
+
+  // GET /api/stats
+  if (path === "/api/stats") {
+    return jsonResponse(getStats());
   }
 
   // GET /api/overview

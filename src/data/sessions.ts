@@ -5,6 +5,11 @@ import type { ProjectInfo, SessionEntry, SessionIndex } from "./types.js";
 
 const PROJECTS_DIR = join(homedir(), ".claude", "projects");
 
+/** Strip XML/HTML-like tags from text (e.g. <command-message>init</command-message> → init) */
+function stripTags(text: string): string {
+  return text.replace(/<[^>]*>/g, "").trim();
+}
+
 /** Read minimal metadata from the first line of a session JSONL file */
 function readJsonlMeta(filePath: string): Partial<SessionEntry> | null {
   try {
@@ -50,7 +55,7 @@ function readFirstPrompt(filePath: string): string {
           }
           // Skip system/interrupted messages
           if (text && !text.startsWith("[Request interrupted")) {
-            return text.slice(0, 500);
+            return stripTags(text).slice(0, 500);
           }
         }
       } catch { /* skip malformed lines */ }
@@ -184,7 +189,7 @@ export function readSessionIndex(projectDirName: string): SessionEntry[] {
         }
         // Use first line of prompt as summary, cleaned up
         const summary = firstPrompt
-          ? firstPrompt.split("\n")[0].slice(0, 120)
+          ? stripTags(firstPrompt.split("\n")[0]).slice(0, 120)
           : "Active session";
         indexed.set(sessionId, {
           sessionId,

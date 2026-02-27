@@ -2,6 +2,7 @@ import { listProjects, getTodaySessions, getLiveSessions } from "../data/session
 import { getMemoryHealth } from "../data/memory.js";
 import { getProjectStatuses } from "../data/status.js";
 import { getHistoryStats } from "../data/history.js";
+import { getStats } from "../data/stats.js";
 
 export function buildOverviewData() {
   const projects = listProjects();
@@ -10,6 +11,7 @@ export function buildOverviewData() {
   const statuses = getProjectStatuses();
   const memHealth = getMemoryHealth();
   const liveSessions = getLiveSessions();
+  const usageStats = getStats();
 
   return {
     projects: projects.map((p) => ({
@@ -30,5 +32,6 @@ export function buildOverviewData() {
       lastUpdated: h.lastUpdated?.toISOString() || null,
       sessionsSinceUpdate: h.sessionsSinceUpdate,
     })),
+    usageStats,
   };
 }
