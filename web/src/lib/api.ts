@@ -1,4 +1,4 @@
-import type { RunRecord } from "./types";
+import type { RunRecord, SessionEvent } from "./types";
 
 const BASE = "";
 
@@ -144,4 +144,8 @@ export const api = {
   historyStats: () => fetchJson<HistoryStats>("/api/history/stats"),
   runs: () => fetchJson<{ runs: Omit<RunRecord, "messages">[] }>("/api/runs"),
   run: (id: string) => fetchJson<{ run: RunRecord }>(`/api/runs/${encodeURIComponent(id)}`),
+  sessionEvents: (id: string, offset = 0, limit = 200) =>
+    fetchJson<{ events: SessionEvent[]; total: number; hasMore: boolean }>(
+      `/api/sessions/${encodeURIComponent(id)}/events?offset=${offset}&limit=${limit}`,
+    ),
 };

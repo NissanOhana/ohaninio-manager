@@ -8,6 +8,7 @@ import { getStats } from "../data/stats.js";
 import { RunStore } from "../chat/run-store.js";
 import { CLIProvider } from "../agent/cli.js";
 import type { AgentEvent } from "../agent/types.js";
+import { SessionTailer, resolveSessionFile } from "../session/stream.js";
 
 // ─── Agent registry ─────────────────────────────────────────────
 
@@ -21,6 +22,10 @@ interface AgentEntry {
 }
 
 const agents = new Map<string, AgentEntry>();
+
+// ─── Session stream registry ────────────────────────────────────
+
+const sessionStreams = new Map<any, SessionTailer>();
 
 function nextAgentId(): string {
   return `agent-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
@@ -104,6 +109,56 @@ export function handleWsMessage(ws: any, data: any, broadcast: (data: unknown) =
 
   if (data.action === "agent_status") {
     ws.send(JSON.stringify({ type: "agent:status", agents: getRunningAgents() }));
+  }
+
+  if (data.action === "session_stream") {
+    startSessionStream(ws, data.sessionId as string, data.projectId as string | undefined);
+  }
+
+  if (data.action === "session_stream_stop") {
+    stopSessionStream(ws);
+  }
+}
+
+// ─── Session stream ─────────────────────────────────────────────
+
+function startSessionStream(ws: any, sessionId: string, projectId?: string): void {
+  // Stop any existing stream for this client
+  stopSessionStream(ws);
+
+  const filePath = resolveSessionFile(sessionId, projectId);
+  if (!filePath) {
+    wsSend(ws, { type: "session:error", error: "Session file not found" });
+    return;
+  }
+
+  // Check if session is live (has a running Claude process)
+  const liveSessions = getLiveSessions();
+  const isLive = liveSessions.some((s) => s.sessionId === sessionId);
+
+  wsSend(ws, { type: "session:meta", sessionId, isLive, filePath });
+
+  const tailer = new SessionTailer(
+    filePath,
+    (events) => {
+      wsSend(ws, { type: "session:events", events });
+    },
+    (error) => {
+      wsSend(ws, { type: "session:error", error });
+    },
+  );
+
+  sessionStreams.set(ws, tailer);
+  tailer.start();
+  wsSend(ws, { type: "session:ready" });
+  console.log(`[session] Started streaming ${sessionId} (live: ${isLive})`);
+}
+
+function stopSessionStream(ws: any): void {
+  const tailer = sessionStreams.get(ws);
+  if (tailer) {
+    tailer.stop();
+    sessionStreams.delete(ws);
   }
 }
 
@@ -551,7 +606,7 @@ function buildSessionInsightsPrompt(sessionId: string): string {
 
 // ─── Cleanup ────────────────────────────────────────────────────
 
-/** Clean up agents when a WebSocket disconnects */
+/** Clean up agents and session streams when a WebSocket disconnects */
 export function cleanupChat(ws: any) {
   for (const [id, entry] of agents) {
     if (entry.ws === ws) {
@@ -561,6 +616,7 @@ export function cleanupChat(ws: any) {
       agents.delete(id);
     }
   }
+  stopSessionStream(ws);
 }
 
 /** Force-stop all agents (server shutdown) */

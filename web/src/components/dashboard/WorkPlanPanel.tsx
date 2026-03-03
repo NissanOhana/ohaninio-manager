@@ -61,6 +61,7 @@ export function WorkPlanPanel() {
   const handlePlan = useCallback(() => {
     if (running) return;
     setHasResult(false);
+    setRunning(true);
     isWorkPlanRef.current = true;
     send({ action: "work_plan" });
   }, [running, send]);

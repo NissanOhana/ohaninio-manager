@@ -6,6 +6,7 @@ import { getTodayHistory, getHistoryStats } from "../data/history.js";
 import { getStats } from "../data/stats.js";
 import { RunStore } from "../chat/run-store.js";
 import { buildOverviewData } from "./overview.js";
+import { resolveSessionFile, readSessionEvents } from "../session/stream.js";
 
 export function jsonResponse(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -113,6 +114,21 @@ export function handleApi(url: URL): Response | null {
       }
     }
     return jsonResponse({ error: "Session not found" }, 404);
+  }
+
+  // GET /api/sessions/:id/events?offset=0&limit=200
+  const eventsMatch = path.match(/^\/api\/sessions\/([a-f0-9-]{36})\/events$/);
+  if (eventsMatch) {
+    const sessionId = eventsMatch[1];
+    const offset = Number(url.searchParams.get("offset")) || 0;
+    const limit = Math.min(Number(url.searchParams.get("limit")) || 200, 1000);
+    const projectId = url.searchParams.get("projectId") || undefined;
+
+    const filePath = resolveSessionFile(sessionId, projectId);
+    if (!filePath) return jsonResponse({ error: "Session not found" }, 404);
+
+    const result = readSessionEvents(filePath, offset, limit);
+    return jsonResponse(result);
   }
 
   // GET /api/sessions/live

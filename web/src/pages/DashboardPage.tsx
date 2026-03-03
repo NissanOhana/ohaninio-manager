@@ -1,5 +1,6 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import type { OverviewData, SessionEntry } from "../lib/api";
+import { api } from "../lib/api";
 import type { Route } from "../hooks/useHashRouter";
 import { Sidebar } from "../components/sidebar/Sidebar";
 import { SessionsView } from "../components/dashboard/SessionsView";
@@ -8,7 +9,7 @@ import { StatsPanel } from "../components/dashboard/StatsPanel";
 import { WorkPlanPanel } from "../components/dashboard/WorkPlanPanel";
 import { InsightsPanel } from "../components/insights/InsightsPanel";
 import { ProjectDetail } from "../components/dashboard/ProjectDetail";
-import { SessionDetail } from "../components/dashboard/SessionDetail";
+import { SessionViewer } from "../components/session/SessionViewer";
 
 interface DashboardPageProps {
   data: OverviewData;
@@ -25,7 +26,7 @@ export function DashboardPage({ data, loading, showInsights, onRegenerateInsight
   const selectedProject = projectId || null;
 
   // Resolve sessionId to a session object from today's sessions or live sessions
-  const selectedSession = useMemo(() => {
+  const localSession = useMemo(() => {
     if (!sessionId) return null;
     const allSessions = [
       ...(data.liveSessions || []),
@@ -40,6 +41,20 @@ export function DashboardPage({ data, loading, showInsights, onRegenerateInsight
     }
     return allSessions.find((s) => s.sessionId === sessionId) as (SessionEntry & { projectName: string }) | undefined || null;
   }, [sessionId, data]);
+
+  // Fallback: fetch session from REST API if not in overview data
+  const [fetchedSession, setFetchedSession] = useState<(SessionEntry & { projectName: string }) | null>(null);
+  useEffect(() => {
+    if (!sessionId || localSession) {
+      setFetchedSession(null);
+      return;
+    }
+    api.session(sessionId).then((res) => {
+      setFetchedSession(res.session);
+    }).catch(() => setFetchedSession(null));
+  }, [sessionId, localSession]);
+
+  const selectedSession = localSession || fetchedSession;
 
   const handleSelectProject = (id: string | null) => {
     if (id) {
@@ -69,7 +84,7 @@ export function DashboardPage({ data, loading, showInsights, onRegenerateInsight
           {showInsights ? (
             <InsightsPanel onRegenerate={onRegenerateInsights} regenerating={insightsRegenerating} />
           ) : selectedSession ? (
-            <SessionDetail
+            <SessionViewer
               session={selectedSession}
               onBack={() => navigate({ page: "dashboard" })}
             />

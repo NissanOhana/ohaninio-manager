@@ -75,8 +75,8 @@ export function WebSocketProvider({ children, onOverviewData, onLiveSessions, on
             setAgentRunning(agents.length > 0);
           }
 
-          // Forward all agent:* events to subscribers
-          if (msg.type.startsWith("agent:") || msg.type.startsWith("run:")) {
+          // Forward all agent:*, run:*, session:* events to subscribers
+          if (msg.type.startsWith("agent:") || msg.type.startsWith("run:") || msg.type.startsWith("session:")) {
             for (const listener of listenersRef.current) {
               listener(msg);
             }
